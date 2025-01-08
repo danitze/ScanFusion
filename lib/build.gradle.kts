@@ -65,6 +65,21 @@ publishing {
             val developerName = project.findProperty("POM_DEVELOPER_NAME")?.toString()
             val developerUrl = project.findProperty("POM_DEVELOPER_URL")?.toString()
 
+            pom.withXml {
+                val dependenciesNode = asNode().appendNode("dependencies")
+
+                // Iterate over the implementation dependencies (excluding test ones), adding a <dependency> node for each
+                configurations["implementation"].allDependencies.forEach { dependency ->
+                    // Ensure dependencies such as fileTree are not included in the pom.
+                    if (dependency.name != "unspecified") {
+                        val dependencyNode = dependenciesNode.appendNode("dependency")
+                        dependencyNode.appendNode("groupId", dependency.group)
+                        dependencyNode.appendNode("artifactId", dependency.name)
+                        dependencyNode.appendNode("version", dependency.version)
+                    }
+                }
+            }
+
             pom {
                 name.set(pomName)
                 description.set(pomDescription)
