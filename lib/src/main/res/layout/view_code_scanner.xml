@@ -13,4 +13,14 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <ImageView
+        android:id="@+id/button_flash"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:contentDescription="Flash"
+        android:padding="12dp"
+        android:src="@drawable/ic_flash_off"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="16dp" />
+
 </merge>

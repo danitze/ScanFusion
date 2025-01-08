@@ -1,6 +1,8 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.vanniktech.maven.publish) apply false
+    alias(libs.plugins.gradleup.nmcp) apply false
 }
 
 android {

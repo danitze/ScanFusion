@@ -2,6 +2,8 @@ package com.danitze.scanfusionlib
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.os.Bundle
+import android.os.Parcelable
 import android.util.AttributeSet
 import android.util.Log
 import android.view.LayoutInflater
@@ -12,6 +14,9 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
+import androidx.core.content.withStyledAttributes
+import androidx.core.os.bundleOf
+import androidx.core.view.isVisible
 import androidx.lifecycle.LifecycleOwner
 import com.danitze.scanfusionlib.format.ScanningBarcodeFormat.Companion.toMlKitBarcodes
 import com.danitze.scanfusionlib.format.ScanningBarcodeFormat.Companion.toZxingBarcodes
@@ -37,6 +42,8 @@ class CodeScannerView @JvmOverloads constructor(
 
     private var onCodeScanned: ((String) -> Unit)? = null
 
+    private var onTorchCannotSwitch: ((Throwable) -> Unit)? = null
+
     private val binding: ViewCodeScannerBinding = ViewCodeScannerBinding
         .inflate(LayoutInflater.from(context), this)
 
@@ -44,7 +51,55 @@ class CodeScannerView @JvmOverloads constructor(
 
     private var camera: Camera? = null
 
+    private var isTorchEnabled: Boolean = false
+        set(value) {
+            field = value
+            val buttonFlashImageResource = if (value) {
+                R.drawable.ic_flash_on
+            } else {
+                R.drawable.ic_flash_off
+            }
+            binding.buttonFlash.setImageResource(buttonFlashImageResource)
+        }
+    private var isTorchSwitchable: Boolean = false
+        set(value) {
+            field = value
+            binding.buttonFlash.isVisible = value
+        }
+
     private val barcodeProcessingState: BarcodeProcessingState = BarcodeProcessingState()
+
+    init {
+        context.withStyledAttributes(attrs, R.styleable.CodeScannerView) {
+            isTorchSwitchable = getBoolean(
+                R.styleable.CodeScannerView_is_torch_switchable,
+                true
+            )
+        }
+        binding.buttonFlash.setOnClickListener {
+            enableFlash(!isTorchEnabled)
+        }
+    }
+
+    override fun onSaveInstanceState(): Parcelable {
+        return bundleOf(
+            "superState" to super.onSaveInstanceState(),
+            EXTRA_KEY_IS_TORCH_ENABLED to isTorchEnabled,
+            EXTRA_KEY_IS_TORCH_SWITCHABLE to isTorchSwitchable
+        )
+    }
+
+    override fun onRestoreInstanceState(state: Parcelable?) {
+        val superState: Parcelable? = if (state != null) {
+            val bundle = state as Bundle
+            isTorchEnabled = bundle.getBoolean(EXTRA_KEY_IS_TORCH_ENABLED)
+            isTorchSwitchable = bundle.getBoolean(EXTRA_KEY_IS_TORCH_SWITCHABLE)
+            bundle.getParcelable("superState")
+        } else {
+            null
+        }
+        super.onRestoreInstanceState(superState)
+    }
 
     fun setCodeScannedListener(listener: (String) -> Unit) {
         onCodeScanned = listener
@@ -120,11 +175,15 @@ class CodeScannerView @JvmOverloads constructor(
     }
 
     @SuppressLint("RestrictedApi")
-    suspend fun enableFlash(enable: Boolean): Result<Unit> = kotlin.runCatching {
-        suspendCoroutine { cont ->
-            camera!!.cameraControl.enableTorch(enable).addListener({
-                cont.resume(Unit)
-            }, Executors.newSingleThreadExecutor())
+    private fun enableFlash(enable: Boolean) {
+        lifecycleScope.launch {
+            kotlin.runCatching {
+                suspendCoroutine { cont ->
+                    camera!!.cameraControl.enableTorch(enable).addListener({
+                        cont.resume(Unit)
+                    }, Executors.newSingleThreadExecutor())
+                }
+            }.onFailure { onTorchCannotSwitch?.invoke(it) }
         }
     }
 
@@ -141,11 +200,10 @@ class CodeScannerView @JvmOverloads constructor(
         return resultCode == ConnectionResult.SUCCESS
     }
 
-    private class BarcodeProcessingState {
-
-        private var isBarcodeProcessing: Boolean = false
-
+    private class BarcodeProcessingState(
+        private var isBarcodeProcessing: Boolean = false,
         private var isScanningEnabled: Boolean = true
+    ) {
 
         fun canBarcodeBeProcessed(): Boolean = synchronized(this) {
             if (!isScanningEnabled) {
@@ -169,5 +227,10 @@ class CodeScannerView @JvmOverloads constructor(
                 isScanningEnabled = isEnabled
             }
         }
+    }
+
+    companion object {
+        private const val EXTRA_KEY_IS_TORCH_ENABLED = "EXTRA_KEY_IS_TORCH_ENABLED"
+        private const val EXTRA_KEY_IS_TORCH_SWITCHABLE = "EXTRA_KEY_IS_TORCH_SWITCHABLE"
     }
 }
