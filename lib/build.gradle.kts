@@ -1,18 +1,17 @@
-import java.io.FileInputStream
-import java.util.Properties
+import org.jreleaser.model.Active
 
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     id("maven-publish")
+    id("signing")
+    alias(libs.plugins.jreleaser)
 }
-
-val githubProperties = Properties()
-githubProperties.load(FileInputStream(rootProject.file("github.properties")))
 
 android {
     namespace = "com.danitze.scanfusionlib"
     compileSdk = 34
+    version = project.properties["VERSION_NAME"].toString()
 
     defaultConfig {
         minSdk = 21
@@ -23,7 +22,7 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = true
+            isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -44,79 +43,7 @@ android {
     publishing {
         singleVariant("release") {
             withSourcesJar()
-        }
-    }
-}
-
-publishing {
-    publications {
-        create<MavenPublication>("release") {
-            groupId = project.findProperty("GROUP")?.toString()
-            artifactId = project.findProperty("POM_ARTIFACT_ID")?.toString()
-            version = project.findProperty("VERSION_NAME")?.toString()
-            artifact("$buildDir/outputs/aar/lib-release.aar")
-
-            val pomName = project.findProperty("POM_NAME")?.toString()
-            val pomDescription = project.findProperty("POM_DESCRIPTION")?.toString()
-            val pomUrl = project.findProperty("POM_URL")?.toString()
-            val licenseName = project.findProperty("POM_LICENSE_NAME")?.toString()
-            val licenseUrl = project.findProperty("POM_LICENSE_URL")?.toString()
-            val developerId = project.findProperty("POM_DEVELOPER_ID")?.toString()
-            val developerName = project.findProperty("POM_DEVELOPER_NAME")?.toString()
-            val developerUrl = project.findProperty("POM_DEVELOPER_URL")?.toString()
-
-            pom.withXml {
-                val dependenciesNode = asNode().appendNode("dependencies")
-
-                // Iterate over the implementation dependencies (excluding test ones), adding a <dependency> node for each
-                configurations["implementation"].allDependencies.forEach { dependency ->
-                    // Ensure dependencies such as fileTree are not included in the pom.
-                    if (dependency.name != "unspecified") {
-                        val dependencyNode = dependenciesNode.appendNode("dependency")
-                        dependencyNode.appendNode("groupId", dependency.group)
-                        dependencyNode.appendNode("artifactId", dependency.name)
-                        dependencyNode.appendNode("version", dependency.version)
-                    }
-                }
-            }
-
-            pom {
-                name.set(pomName)
-                description.set(pomDescription)
-                url.set(pomUrl)
-
-                licenses {
-                    license {
-                        name.set(licenseName)
-                        url.set(licenseUrl)
-                    }
-                }
-
-                developers {
-                    developer {
-                        id.set(developerId)
-                        name.set(developerName)
-                        url.set(developerUrl)
-                    }
-                }
-
-                issueManagement {
-                    system.set("GitHub")
-                    url.set("https://github.com/danitze/ScanFusion/issues")
-                }
-            }
-        }
-    }
-
-    repositories {
-        maven {
-            name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/danitze/ScanFusion")
-
-            credentials {
-                username = githubProperties["gpr.usr"]?.toString() ?: System.getenv("GPR_USER")
-                password = githubProperties["gpr.key"]?.toString() ?: System.getenv("GPR_API_KEY")
-            }
+            withJavadocJar()
         }
     }
 }
@@ -135,3 +62,94 @@ dependencies {
     implementation(libs.play.services.mlkit.barcode.scanning)
     implementation(libs.google.zxing)
 }
+
+publishing {
+    publications {
+        create<MavenPublication>("release") {
+            groupId = properties["GROUP"].toString()
+            artifactId = properties["POM_ARTIFACT_ID"].toString()
+
+            pom {
+                name.set(project.properties["POM_NAME"].toString())
+                description.set(project.properties["POM_DESCRIPTION"].toString())
+                url.set("https://github.com/danitze/ScanFusion")
+                issueManagement {
+                    url.set("https://github.com/danitze/ScanFusion/issues")
+                }
+
+                scm {
+                    url.set(project.properties["POM_SCM_URL"].toString())
+                    connection.set(project.properties["POM_SCM_CONNECTION"].toString())
+                    developerConnection.set(project.properties["POM_SCM_DEV_CONNECTION"].toString())
+                }
+
+                licenses {
+                    license {
+                        name.set(project.properties["POM_LICENSE_NAME"].toString())
+                        url.set(project.properties["POM_LICENSE_URL"].toString())
+                        distribution.set(project.properties["POM_LICENSE_DIST"].toString())
+                    }
+                }
+
+                developers {
+                    developer {
+                        id.set(project.properties["POM_DEVELOPER_ID"].toString())
+                        name.set(project.properties["POM_DEVELOPER_NAME"].toString())
+                        email.set(project.properties["POM_DEVELOPER_EMAIL"].toString())
+                        url.set(project.properties["POM_DEVELOPER_URL"].toString())
+                    }
+                }
+
+                afterEvaluate {
+                    from(components["release"])
+                }
+            }
+        }
+    }
+    repositories {
+        maven {
+            setUrl(layout.buildDirectory.dir("staging-deploy"))
+        }
+    }
+}
+
+jreleaser {
+    project {
+        inceptionYear = "2025"
+        author("@danitze")
+        //version = properties["VERSION_NAME"].toString()
+    }
+    gitRootSearch = true
+    signing {
+        active = Active.ALWAYS
+        armored = true
+        verify = true
+    }
+    release {
+        github {
+            skipTag = true
+            sign = true
+            branch = "master"
+            branchPush = "master"
+            overwrite = true
+        }
+    }
+    deploy {
+        maven {
+            mavenCentral.create("sonatype") {
+                active = Active.ALWAYS
+                url = "https://central.sonatype.com/api/v1/publisher"
+                stagingRepository(layout.buildDirectory.dir("staging-deploy").get().toString())
+                setAuthorization("Basic")
+                applyMavenCentralRules = false // Wait for fix: https://github.com/kordamp/pomchecker/issues/21
+                sign = true
+                checksums = true
+                sourceJar = true
+                javadocJar = true
+                retryDelay = 60
+            }
+        }
+    }
+}
+
+//apply(from = "../publish-package.gradle.kts")
