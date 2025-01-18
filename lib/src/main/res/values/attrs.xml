@@ -4,5 +4,17 @@
         <attr
             name="is_torch_switchable"
             format="boolean" />
+        <attr
+            name="is_close_button_visible"
+            format="boolean" />
+        <attr
+            name="torch_enabled_icon"
+            format="reference" />
+        <attr
+            name="torch_disabled_icon"
+            format="reference" />
+        <attr
+            name="close_icon"
+            format="reference" />
     </declare-styleable>
 </resources>

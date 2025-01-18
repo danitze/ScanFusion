@@ -8,6 +8,7 @@ import android.util.AttributeSet
 import android.util.Log
 import android.view.LayoutInflater
 import android.widget.FrameLayout
+import androidx.annotation.DrawableRes
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -18,12 +19,12 @@ import androidx.core.content.withStyledAttributes
 import androidx.core.os.bundleOf
 import androidx.core.view.isVisible
 import androidx.lifecycle.LifecycleOwner
-import com.danitze.scanfusionlib.format.ScanningBarcodeFormat.Companion.toMlKitBarcodes
-import com.danitze.scanfusionlib.format.ScanningBarcodeFormat.Companion.toZxingBarcodes
 import com.danitze.scanfusionlib.analyzer.BarcodeAnalyzer
 import com.danitze.scanfusionlib.analyzer.ZxingBarcodeAnalyzer
 import com.danitze.scanfusionlib.databinding.ViewCodeScannerBinding
 import com.danitze.scanfusionlib.format.ScanningBarcodeFormat
+import com.danitze.scanfusionlib.format.ScanningBarcodeFormat.Companion.toMlKitBarcodes
+import com.danitze.scanfusionlib.format.ScanningBarcodeFormat.Companion.toZxingBarcodes
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import kotlinx.coroutines.CoroutineScope
@@ -44,6 +45,8 @@ class CodeScannerView @JvmOverloads constructor(
 
     private var onTorchCannotSwitch: ((Throwable) -> Unit)? = null
 
+    private var onCloseClick: (() -> Unit)? = null
+
     private val binding: ViewCodeScannerBinding = ViewCodeScannerBinding
         .inflate(LayoutInflater.from(context), this)
 
@@ -51,20 +54,37 @@ class CodeScannerView @JvmOverloads constructor(
 
     private var camera: Camera? = null
 
+    @DrawableRes
+    private var closeIconRes: Int? = null
+        set(value) {
+            if (value == null) {
+                return
+            }
+            field = value
+            binding.buttonClose.setImageResource(value)
+        }
+
+    @DrawableRes
+    private var torchEnabledIconRes: Int? = null
+
+    @DrawableRes
+    private var torchDisabledIconRes: Int? = null
+
     private var isTorchEnabled: Boolean = false
         set(value) {
             field = value
-            val buttonFlashImageResource = if (value) {
-                R.drawable.ic_flash_on
-            } else {
-                R.drawable.ic_flash_off
-            }
-            binding.buttonFlash.setImageResource(buttonFlashImageResource)
+            refreshFlashImage()
         }
     private var isTorchSwitchable: Boolean = false
         set(value) {
             field = value
             binding.buttonFlash.isVisible = value
+        }
+
+    private var isCloseButtonVisible: Boolean = false
+        set(value) {
+            field = value
+            binding.buttonClose.isVisible = value
         }
 
     private val barcodeProcessingState: BarcodeProcessingState = BarcodeProcessingState()
@@ -75,9 +95,31 @@ class CodeScannerView @JvmOverloads constructor(
                 R.styleable.CodeScannerView_is_torch_switchable,
                 true
             )
+            isCloseButtonVisible = getBoolean(
+                R.styleable.CodeScannerView_is_close_button_visible,
+                true
+            )
+            closeIconRes = getResourceId(
+                R.styleable.CodeScannerView_close_icon,
+                R.drawable.ic_close
+            )
+            torchEnabledIconRes = getResourceId(
+                R.styleable.CodeScannerView_torch_enabled_icon,
+                R.drawable.ic_flash_on
+            )
+            torchDisabledIconRes = getResourceId(
+                R.styleable.CodeScannerView_torch_disabled_icon,
+                R.drawable.ic_flash_off
+            )
+            isTorchEnabled = false
         }
         binding.buttonFlash.setOnClickListener {
+            Log.d("MyTag", "Flash click")
             enableFlash(!isTorchEnabled)
+        }
+        binding.buttonClose.setOnClickListener {
+            Log.d("MyTag", "Close click")
+            onCloseClick?.invoke()
         }
     }
 
@@ -85,7 +127,11 @@ class CodeScannerView @JvmOverloads constructor(
         return bundleOf(
             "superState" to super.onSaveInstanceState(),
             EXTRA_KEY_IS_TORCH_ENABLED to isTorchEnabled,
-            EXTRA_KEY_IS_TORCH_SWITCHABLE to isTorchSwitchable
+            EXTRA_KEY_IS_TORCH_SWITCHABLE to isTorchSwitchable,
+            EXTRA_KEY_IS_CLOSE_BUTTON_VISIBLE to isCloseButtonVisible,
+            EXTRA_KEY_CLOSE_ICON_RES to closeIconRes,
+            EXTRA_KEY_TORCH_ENABLED_ICON_RES to torchEnabledIconRes,
+            EXTRA_KEY_TORCH_DISABLED_ICON_RES to torchDisabledIconRes
         )
     }
 
@@ -94,6 +140,10 @@ class CodeScannerView @JvmOverloads constructor(
             val bundle = state as Bundle
             isTorchEnabled = bundle.getBoolean(EXTRA_KEY_IS_TORCH_ENABLED)
             isTorchSwitchable = bundle.getBoolean(EXTRA_KEY_IS_TORCH_SWITCHABLE)
+            isCloseButtonVisible = bundle.getBoolean(EXTRA_KEY_IS_CLOSE_BUTTON_VISIBLE, true)
+            closeIconRes = bundle.getInt(EXTRA_KEY_CLOSE_ICON_RES, R.drawable.ic_close)
+            torchEnabledIconRes = bundle.getInt(EXTRA_KEY_TORCH_ENABLED_ICON_RES, R.drawable.ic_flash_on)
+            torchDisabledIconRes = bundle.getInt(EXTRA_KEY_TORCH_DISABLED_ICON_RES, R.drawable.ic_flash_off)
             bundle.getParcelable("superState")
         } else {
             null
@@ -107,6 +157,10 @@ class CodeScannerView @JvmOverloads constructor(
 
     fun onScanningEnabled(isEnabled: Boolean) {
         barcodeProcessingState.setIsScanningEnabled(isEnabled)
+    }
+
+    fun setOnCloseClickListener(listener: () -> Unit) {
+        onCloseClick = listener
     }
 
     fun bindCameraUseCases(
@@ -229,8 +283,50 @@ class CodeScannerView @JvmOverloads constructor(
         }
     }
 
+    fun setCloseIconRes(
+        @DrawableRes
+        iconRes: Int
+    ) {
+        closeIconRes = iconRes
+    }
+
+    fun setTorchIcons(
+        @DrawableRes
+        disabledIconRes: Int,
+        @DrawableRes
+        enabledIconRes: Int
+    ) {
+        torchDisabledIconRes = disabledIconRes
+        torchEnabledIconRes = enabledIconRes
+        refreshFlashImage()
+    }
+
+    fun setIsFlashSwitchable(isSwitchable: Boolean) {
+        isTorchSwitchable = isSwitchable
+    }
+
+    fun setIsCloseVisible(isVisible: Boolean) {
+        isCloseButtonVisible = isVisible
+    }
+
+    private fun refreshFlashImage() {
+        val torchEnabledIconRes = torchEnabledIconRes ?: return
+        val torchDisabledIconRes = torchDisabledIconRes ?: return
+        val buttonFlashImageRes = if (isTorchEnabled) {
+            torchEnabledIconRes
+        } else {
+            torchDisabledIconRes
+        }
+
+        binding.buttonFlash.setImageResource(buttonFlashImageRes)
+    }
+
     companion object {
         private const val EXTRA_KEY_IS_TORCH_ENABLED = "EXTRA_KEY_IS_TORCH_ENABLED"
         private const val EXTRA_KEY_IS_TORCH_SWITCHABLE = "EXTRA_KEY_IS_TORCH_SWITCHABLE"
+        private const val EXTRA_KEY_IS_CLOSE_BUTTON_VISIBLE = "EXTRA_KEY_IS_CLOSE_BUTTON_VISIBLE"
+        private const val EXTRA_KEY_CLOSE_ICON_RES = "EXTRA_KEY_CLOSE_ICON_RES"
+        private const val EXTRA_KEY_TORCH_ENABLED_ICON_RES = "EXTRA_KEY_TORCH_ENABLED_ICON_RES"
+        private const val EXTRA_KEY_TORCH_DISABLED_ICON_RES = "EXTRA_KEY_TORCH_DISABLED_ICON_RES"
     }
 }

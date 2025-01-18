@@ -17,10 +17,24 @@
         android:id="@+id/button_flash"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_gravity="end"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="16dp"
         android:contentDescription="Flash"
         android:padding="12dp"
-        android:src="@drawable/ic_flash_off"
+        android:elevation="1dp"
+        tools:src="@drawable/ic_flash_off" />
+
+    <ImageView
+        android:id="@+id/button_close"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="start"
         android:layout_marginStart="16dp"
-        android:layout_marginTop="16dp" />
+        android:layout_marginTop="16dp"
+        android:contentDescription="Close"
+        android:padding="12dp"
+        android:elevation="1dp"
+        tools:src="@drawable/ic_close" />
 
 </merge>
