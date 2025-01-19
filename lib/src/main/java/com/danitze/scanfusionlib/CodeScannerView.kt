@@ -114,11 +114,9 @@ class CodeScannerView @JvmOverloads constructor(
             isTorchEnabled = false
         }
         binding.buttonFlash.setOnClickListener {
-            Log.d("MyTag", "Flash click")
             enableFlash(!isTorchEnabled)
         }
         binding.buttonClose.setOnClickListener {
-            Log.d("MyTag", "Close click")
             onCloseClick?.invoke()
         }
     }

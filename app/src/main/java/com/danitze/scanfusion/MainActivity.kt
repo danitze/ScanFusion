@@ -55,7 +55,6 @@ class MainActivity : AppCompatActivity() {
             this
         )
         codeScanner.setOnCloseClickListener {
-            Log.d("MyTag", "Close click in main activity found")
             finish()
         }
     }
