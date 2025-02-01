@@ -46,7 +46,7 @@ class BarcodeAnalyzer(
                 .addOnSuccessListener { barcodes ->
                     barcodes.filter { barcode ->
                         barcode.boundingBox?.let {
-                            scanningBoxRect.contains(getRealBoundingRect(it))
+                            RectF.intersects(scanningBoxRect, getRealBoundingRect(it))
                         } ?: false
                     }.forEach { barcode ->
                         barcodeListener(barcode.rawValue ?: "")

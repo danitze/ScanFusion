@@ -59,10 +59,10 @@ class ZxingBarcodeAnalyzer(
                         rotatedImage.byteArray,
                         rotatedImage.width,
                         rotatedImage.height,
-                        barcodeRect.left.toInt(),
-                        barcodeRect.top.toInt(),
-                        barcodeRect.width().toInt(),
-                        barcodeRect.height().toInt(),
+                        (barcodeRect.left - barcodeRect.width() / 2).toInt(),
+                        (barcodeRect.top - barcodeRect.height() / 2).toInt(),
+                        barcodeRect.width().toInt() * 2,
+                        barcodeRect.height().toInt() * 2,
                         false
                     )
 

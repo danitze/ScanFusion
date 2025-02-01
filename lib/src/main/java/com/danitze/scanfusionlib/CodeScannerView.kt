@@ -189,7 +189,7 @@ class CodeScannerView @JvmOverloads constructor(
                     }
                     setAnalyzer(
                         Executors.newSingleThreadExecutor(),
-                        if (!isGooglePlayServicesAvailable(context)) {
+                        if (isGooglePlayServicesAvailable(context)) {
                             BarcodeAnalyzer(
                                 barcodeFormats = formats.toMlKitBarcodes(),
                                 previewViewWidth = binding.previewView.width.toFloat(),
