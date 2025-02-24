@@ -231,7 +231,8 @@ class CodeScannerView @JvmOverloads constructor(
         lifecycleScope.launch {
             kotlin.runCatching {
                 suspendCoroutine { cont ->
-                    camera!!.cameraControl.enableTorch(enable).addListener({
+                    camera?.cameraControl?.enableTorch(enable)?.addListener({
+                        isTorchEnabled = !isTorchEnabled
                         cont.resume(Unit)
                     }, Executors.newSingleThreadExecutor())
                 }
